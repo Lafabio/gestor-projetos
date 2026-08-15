@@ -323,9 +323,9 @@ body.modal-lock{overflow:hidden;}
 @keyframes slide{from{transform:translateX(30px);opacity:0;}to{transform:translateX(0);opacity:1;}}
 
 /* ================= AUTH ================= */
-#authOverlay{display:none;position:fixed;inset:0;background:linear-gradient(135deg,#00295e 0%,#00307f 50%,var(--teal) 130%);z-index:400;align-items:center;justify-content:center;flex-direction:column;padding:20px;overflow-y:auto;}
+#authOverlay{display:none;position:fixed;inset:0;background:linear-gradient(135deg,#00295e 0%,#00307f 50%,var(--teal) 130%);z-index:400;padding:20px;overflow-y:auto;flex-direction:column;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 #authOverlay.open{display:flex;}
-.auth-card{background:#fff;border-radius:18px;width:min(470px,96vw);box-shadow:0 30px 90px rgba(0,0,0,.45);overflow:hidden;}
+.auth-card{background:#fff;border-radius:18px;width:min(470px,96vw);box-shadow:0 30px 90px rgba(0,0,0,.45);overflow:hidden;margin:auto;flex-shrink:0;}
 .auth-hero{background:linear-gradient(135deg,var(--azul),var(--teal));color:#fff;padding:26px 28px 22px;text-align:center;}
 .auth-hero .ah-icon{font-size:2.4rem;display:block;margin-bottom:7px;}
 .auth-hero h1{font-size:1.25rem;font-weight:800;letter-spacing:.02em;}
@@ -338,7 +338,7 @@ body.modal-lock{overflow:hidden;}
 .auth-panel.active{display:block;}
 .auth-err{color:var(--vermelho);font-size:.78rem;min-height:18px;margin-bottom:8px;font-weight:600;}
 .auth-note{font-size:.72rem;color:var(--muted);line-height:1.6;background:#fff7e6;border:1px solid #f3dd9d;border-radius:8px;padding:9px 12px;margin-top:10px;}
-.auth-logo{font-size:.72rem;color:#7e8ca0;text-align:center;margin-top:16px;}
+.auth-logo{font-size:.72rem;color:#7e8ca0;text-align:center;margin:16px auto 0;flex-shrink:0;}
 
 /* Perfil complementar */
 #perfilOverlay{display:none;position:fixed;inset:0;background:rgba(10,25,55,.75);z-index:350;align-items:center;justify-content:center;padding:18px;}
