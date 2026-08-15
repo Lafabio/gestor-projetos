@@ -229,6 +229,8 @@ body.modal-lock{overflow:hidden;}
 .meta-chip.prio{background:#f5f7fa;color:var(--ink);}
 .meta-chip.grupo{background:var(--azul-claro);color:var(--azul);}
 .meta-chip.check{background:#e7f6e9;color:var(--verde-esc);}
+.meta-chip.link{background:#eef2f9;color:var(--azul);cursor:pointer;text-decoration:none;transition:background .14s;}
+.meta-chip.link:hover{background:#dfe9ff;}
 .card-item .ci-members{margin-left:auto;display:flex;padding-left:6px;}
 .avatar{
   width:23px;height:23px;border-radius:50%;color:#fff;font-size:.62rem;font-weight:800;
@@ -1173,6 +1175,7 @@ function cardHTML(c){
     check='<span class="meta-chip check">☑ '+feitos+'/'+c.checklist.length+'</span>';
   }
   var grupo=c.grupoId?'<span class="meta-chip grupo" style="background:'+corGrupo(c.grupoId)+'22;color:'+corGrupo(c.grupoId)+'">'+esc(nomeGrupo(c.grupoId))+'</span>':'';
+  var link=c.link?'<a class="meta-chip link" href="'+esc(c.link)+'" target="_blank" rel="noopener" title="Abrir link/pasta" onclick="event.stopPropagation();">🔗</a>':'';
   var mems=(c.responsaveis||[]).map(function(ru){
     var u=S.usuariosMap[ru];
     var ini=(u&&u.nome?u.nome.trim()[0]:'?').toUpperCase();
@@ -1181,7 +1184,7 @@ function cardHTML(c){
   return '<div class="card-item" draggable="true" onclick="abrirCartao(\''+c.id+'\')" data-id="'+c.id+'">'+
     '<div class="ci-title">'+esc(c.titulo)+'</div>'+
     (lbls?'<div class="ci-labels">'+lbls+'</div>':'')+
-    '<div class="ci-meta">'+ (prio?'<span class="meta-chip prio">'+prio.ico+' '+prio.n+'</span>':'') + due + grupo + check +
+    '<div class="ci-meta">'+ (prio?'<span class="meta-chip prio">'+prio.ico+' '+prio.n+'</span>':'') + due + grupo + check + link +
       (mems?'<div class="ci-members">'+mems+'</div>':'')+
     '</div></div>';
 }
@@ -1469,7 +1472,9 @@ function listarArquivos(){
       }).catch(function(){});
     });
   }).catch(function(e){
-    $('arquivosLista').innerHTML='<div class="empty-hint">Erro ao listar: '+esc(errMsg(e))+'</div>';
+    var m=(e&&e.message||'').toLowerCase();
+    var naoConfig = !STORAGE || m.indexOf('bucket')>-1 || m.indexOf('does not exist')>-1 || m.indexOf('not set up')>-1 || m.indexOf('no default bucket')>-1 || m.indexOf('storage')>-1&&m.indexOf('project')>-1;
+    $('arquivosLista').innerHTML='<div class="empty-hint">'+(naoConfig?'Firebase Storage ainda não está ativado neste projeto. O envio de arquivos fica disponível quando o Storage for habilitado no console Firebase.':'Erro ao listar: '+esc(errMsg(e)))+'</div>';
   });
 }
 function escJs(s){ return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
@@ -1661,6 +1666,7 @@ function abrirNovoCartao(pid,listaId){
       '<div class="field"><label>Prioridade</label><select id="cPrio"><option value="0">—</option><option value="1">🟢 Baixa</option><option value="2">🟡 Média</option><option value="3">🟠 Alta</option><option value="4">🔴 Crítica</option></select></div>'+
       '<div class="field"><label>Prazo (opcional)</label><input type="date" id="cVenc"></div>'+
     '</div>'+
+    '<div class="field"><label>🔗 Link da pasta/arquivos (opcional)</label><input type="text" id="cLink" placeholder="Ex: https://drive.google.com/drive/folders/..." onkeydown="if(event.key===\'Enter\')salvarNovoCartao()"></div>'+
     '<div class="field"><label>Responsáveis</label><div class="avatars-pick" id="cRespPick"></div></div>'+
     '<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:6px;">'+
       '<button class="btn btn-sec" onclick="fechar(\'cardOverlay\')">Cancelar</button>'+
@@ -1685,7 +1691,7 @@ async function salvarNovoCartao(){
   var data={
     projetoId:S.projetoAtual, listaId:$('cEtapa').value, grupoId:grupoId,
     titulo:titulo, descricao:$('cDesc').value.trim(),
-    etiquetas:[], prioridade:parseInt($('cPrio').value)||0,
+    link:$('cLink').value.trim(), etiquetas:[], prioridade:parseInt($('cPrio').value)||0,
     vencimento:$('cVenc').value||null, responsaveis:resp, checklist:[],
     comentarios:[], ordem:1000, arquivado:false,
     criadoPor:S.user.uid, criadoEm:firebase.firestore.FieldValue.serverTimestamp()
@@ -1744,6 +1750,11 @@ function abrirCartao(id){
       '</div>'+
       '<div class="cm-main">'+
         '<div class="field"><label>Descrição</label><textarea id="cDesc2" '+(edit?'':'disabled')+' onchange="editarDesc(\''+c.id+'\',this.value)">'+esc(c.descricao||'')+'</textarea></div>'+
+        '<div class="field"><label>🔗 Link da pasta/arquivos</label>'+
+          '<div style="display:flex;gap:8px;align-items:center;">'+
+            '<input type="text" id="cLink2" value="'+esc(c.link||'')+'" '+(edit?'':'disabled')+' onchange="editarLink(\''+c.id+'\',this.value)" style="flex:1;">'+
+            (c.link?'<a class="btn btn-pri btn-sm" target="_blank" rel="noopener" href="'+esc(c.link)+'">Abrir ↗</a>':'')+
+          '</div></div>'+
         '<div class="field"><label>✅ Checklist ('+(c.checklist?c.checklist.length:0)+')</label>'+
           '<div class="ck-prog"><div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div><span>'+feitos+'/'+(c.checklist?c.checklist.length:0)+'</span></div>'+
           checkboxHtml+
@@ -1779,6 +1790,7 @@ function upCard(id,data){
 }
 function editarTitulo(id,v){ if(v.trim()) upCard(id,{titulo:v.trim()}); }
 function editarDesc(id,v){ upCard(id,{descricao:v}); }
+function editarLink(id,v){ upCard(id,{link:v.trim()}); }
 function editaGrupo(id,g){ upCard(id,{grupoId:g}); }
 function setPrio(id,v){ upCard(id,{prioridade:parseInt(v)||0}); }
 function setVenc(id,v){ upCard(id,{vencimento:v||null}); }
