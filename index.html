@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -269,6 +270,18 @@ body.modal-lock{overflow:hidden;}
 #cdInput:focus{border-color:var(--vermelho);box-shadow:0 0 0 3px rgba(205,55,42,.12);}
 .confirm-msg{font-size:.78rem;margin-top:8px;min-height:1em;color:var(--vermelho);font-weight:700;}
 .confirm-msg.ok{color:var(--verde);}
+
+/* ===== Modal de arquivos ===== */
+.arq-item{display:flex;align-items:center;gap:10px;background:#f6f9fe;border:1px solid var(--border);border-radius:9px;padding:8px 10px;}
+.arq-ico{font-size:1.15rem;flex-shrink:0;}
+.arq-info{flex:1;min-width:0;}
+.arq-nome{display:block;font-size:.8rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.arq-meta{font-size:.68rem;color:var(--muted);}
+.empty-hint{font-size:.8rem;color:var(--muted);text-align:center;padding:18px 6px;font-style:italic;}
+.progress-box{display:flex;align-items:center;gap:10px;margin-top:12px;}
+.progress-box .bar{flex:1;height:8px;background:#e8edf5;border-radius:99px;overflow:hidden;}
+.progress-box .fill{height:100%;background:var(--azul);border-radius:99px;transition:width .15s;}
+.progress-box .num{font-size:.72rem;font-weight:700;color:var(--azul);min-width:34px;text-align:right;}
 .btn{font-family:var(--font);font-weight:700;font-size:.8rem;padding:9px 18px;border-radius:8px;cursor:pointer;border:1.5px solid transparent;transition:all .16s;}
 .btn-pri{background:var(--azul);color:#fff;border-color:var(--azul);}
 .btn-pri:hover{background:var(--azul-esc);}
@@ -447,6 +460,7 @@ body.modal-lock{overflow:hidden;}
   </div>
   <div class="tb-right">
     <button class="tb-btn" onclick="abrirGrupos()" id="btnGruposTop" style="display:none;">👥 Grupos</button>
+    <button class="tb-btn" onclick="abrirArquivos()" id="btnArquivosTop" style="display:none;">📁 Arquivos</button>
     <button class="tb-btn primary" onclick="abrirNovoProjeto()">＋ Novo projeto</button>
     <div class="user-badge" onclick="abrirPerfilModal()">
       <div class="ua" id="userAvatar">?</div>
@@ -561,6 +575,23 @@ Refletir</textarea>
   </div>
 </div>
 
+<!-- ===================== MODAL: ARQUIVOS ===================== -->
+<div class="overlay" id="arquivosOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3 id="arquivosTitle">📁 Arquivos</h3><button class="modal-close" onclick="fechar('arquivosOverlay')">✕</button></div>
+    <div class="modal-body">
+      <div id="arquivosLista" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div id="arquivosUpload" style="margin-top:14px;">
+        <label class="btn btn-pri" style="display:inline-block;cursor:pointer;">⬆ Enviar arquivos <input type="file" id="arquivoInput" multiple style="display:none;" onchange="enviarArquivos(this.files); this.value='';"></label>
+        <div class="progress-box" id="arquivoProgresso" style="display:none;"><div class="bar"><div class="fill" id="arquivoBarra" style="width:0%"></div></div><span class="num" id="arquivoPct">0%</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="fechar('arquivosOverlay')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: GRUPOS ===================== -->
 <div class="overlay" id="gruposOverlay">
   <div class="modal lg">
@@ -659,7 +690,7 @@ var FIREBASE_CONFIG = {
   projectId: 'plan-sc-ecb9d'
 };
 
-var FB = null, AUTH = null;
+var FB = null, AUTH = null, STORAGE = null;
 try {
   if (window.firebase && FIREBASE_CONFIG.projectId) {
     FB = firebase.initializeApp(FIREBASE_CONFIG);
@@ -667,6 +698,7 @@ try {
     AUTH.useDeviceLanguage();
     FIRESTORE = firebase.firestore();
     FIRESTORE.settings({merge : true});
+    if (window.firebase.storage) STORAGE = firebase.storage();
   }
 } catch (e) { console.warn('Firebase não inicializado', e); }
 
@@ -940,6 +972,7 @@ function renderAll(){
   renderChips();
   renderDashboard();
   renderBoard();
+  $('btnArquivosTop').style.display = S.projetoAtual ? '' : 'none';
   if(S.view==='dashboard'){ $('view-dashboard').classList.add('active'); $('view-board').classList.remove('active'); }
   else { $('view-board').classList.add('active'); $('view-dashboard').classList.remove('active'); }
   aplicarFiltros();
@@ -1400,6 +1433,104 @@ async function excluirProjetoConfirmado(){
     if(S.projetoAtual===alvo.id) S.projetoAtual=null;
     renderAll();
   }catch(e){ toast('Erro: '+errMsg(e),'err'); }
+}
+
+/* ---- Arquivos (Firebase Storage, pasta por projeto) ---- */
+function abrirArquivos(){
+  var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
+  if(!p){ toast('Selecione um projeto na coluna lateral.','err'); return; }
+  $('arquivosTitle').textContent='📁 Arquivos — '+p.nome;
+  $('arquivosLista').innerHTML='<div class="empty-hint">Carregando...</div>';
+  $('arquivoProgresso').style.display='none';
+  abrir('arquivosOverlay');
+  listarArquivos();
+}
+function listarArquivos(){
+  var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
+  if(!p) return;
+  if(!STORAGE){
+    $('arquivosLista').innerHTML='<div class="empty-hint">Ative o Firebase Storage no console (Firebase → Build → Storage → Começar) e recarregue a página.</div>';
+    return;
+  }
+  STORAGE.ref('projetos/'+p.id).listAll().then(function(res){
+    $('arquivosLista').innerHTML='';
+    var items=res.items.slice().sort(function(a,b){ return b.name.localeCompare(a.name); });
+    if(!items.length){ $('arquivosLista').innerHTML='<div class="empty-hint">Nenhum arquivo ainda. Envie o primeiro acima.</div>'; return; }
+    items.forEach(function(it){
+      it.getMetadata().then(function(meta){
+        var el=document.createElement('div');
+        el.className='arq-item';
+        var nm=esc(it.name);
+        el.innerHTML='<span class="arq-ico">'+iconeArquivo(it.name)+'</span>'+
+          '<div class="arq-info"><span class="arq-nome" title="'+nm+'">'+nm+'</span><span class="arq-meta">'+formatarBytes(meta.size||0)+'</span></div>'+
+          '<button class="g-del" title="Baixar" onclick="baixarArquivo(\''+escJs(it.name)+'\')">⬇</button>'+
+          (IS_PROFESSOR?'<button class="g-del" title="Excluir" onclick="excluirArquivo(\''+escJs(it.name)+'\')">🗑</button>':'');
+        $('arquivosLista').appendChild(el);
+      }).catch(function(){});
+    });
+  }).catch(function(e){
+    $('arquivosLista').innerHTML='<div class="empty-hint">Erro ao listar: '+esc(errMsg(e))+'</div>';
+  });
+}
+function escJs(s){ return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function formatarBytes(n){
+  if(!n&&n!==0) return '';
+  if(n<1024) return n+' B';
+  if(n<1048576) return (n/1024).toFixed(1)+' KB';
+  return (n/1048576).toFixed(1)+' MB';
+}
+function iconeArquivo(n){
+  var ext=(n.split('.').pop()||'').toLowerCase();
+  if(['png','jpg','jpeg','gif','svg','webp'].indexOf(ext)>-1) return '🖼';
+  if(ext==='pdf') return '📄';
+  if(['doc','docx','txt','rtf','md'].indexOf(ext)>-1) return '📝';
+  if(['xls','xlsx','csv'].indexOf(ext)>-1) return '📊';
+  if(['ppt','pptx'].indexOf(ext)>-1) return '📽';
+  if(['zip','rar','7z','tar','gz'].indexOf(ext)>-1) return '🗜';
+  if(['mp4','mov','avi','mkv','webm'].indexOf(ext)>-1) return '🎬';
+  if(['mp3','wav','ogg','flac'].indexOf(ext)>-1) return '🎵';
+  return '📎';
+}
+function enviarArquivos(files){
+  if(!IS_PROFESSOR){ toast('Somente o professor gerencia arquivos.','err'); return; }
+  if(!files||!files.length) return;
+  var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
+  if(!p||!STORAGE) return;
+  var ref=STORAGE.ref('projetos/'+p.id+'/'+files[0].name);
+  $('arquivoProgresso').style.display='';
+  var task=ref.put(files[0]);
+  task.on('state_changed', function(snap){
+    var pct=snap.totalBytes?Math.round(snap.bytesTransferred*100/snap.totalBytes):0;
+    $('arquivoBarra').style.width=pct+'%';
+    $('arquivoPct').textContent=pct+'%';
+  }, function(e){
+    toast('Erro ao enviar: '+errMsg(e),'err');
+    $('arquivoProgresso').style.display='none';
+  }, function(){
+    toast('Arquivo enviado!','ok');
+    $('arquivoProgresso').style.display='none';
+    listarArquivos();
+    var rest=Array.prototype.slice.call(files,1);
+    if(rest.length) enviarArquivos(rest);
+  });
+}
+function baixarArquivo(nome){
+  if(!STORAGE) return;
+  var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
+  if(!p) return;
+  STORAGE.ref('projetos/'+p.id+'/'+nome).getDownloadURL().then(function(url){
+    window.open(url,'_blank');
+  }).catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+}
+function excluirArquivo(nome){
+  if(!IS_PROFESSOR) return;
+  if(!confirm('Excluir o arquivo "'+nome+'"?')) return;
+  var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
+  if(!p||!STORAGE) return;
+  STORAGE.ref('projetos/'+p.id+'/'+nome).delete().then(function(){
+    toast('Arquivo excluído.','ok');
+    listarArquivos();
+  }).catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
 }
 function novaEtapa(pid){
   if(!IS_PROFESSOR){ toast('Somente o professor.','err'); return; }
