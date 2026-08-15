@@ -802,9 +802,10 @@ function escutarDados(){
     if(RENDERS_ATIVOS) renderAll();
   },function(e){ toast('Erro nos dados de usuários','err'); });
 
-  FIRESTORE.collection('projetos').where('arquivado','==',false).orderBy('criadoEm','desc').onSnapshot(function(snap){
+  FIRESTORE.collection('projetos').onSnapshot(function(snap){
     S.projetos=[];
-    snap.forEach(function(d){ var p=d.data(); p.id=d.id; S.projetos.push(p); });
+    snap.forEach(function(d){ var p=d.data(); if(p.arquivado) return; p.id=d.id; S.projetos.push(p); });
+    S.projetos.sort(function(a,b){ return (b.criadoEm&&b.criadoEm.seconds||0)-(a.criadoEm&&a.criadoEm.seconds||0); });
     if(S.projetoAtual && !S.projetos.some(function(p){return p.id===S.projetoAtual;})) S.projetoAtual=null;
     preencherFiltroMembros();
     if(RENDERS_ATIVOS) renderAll();
@@ -1003,7 +1004,8 @@ function renderBoard(){
   var p=S.projetos.find(function(x){return x.id===S.projetoAtual;});
   var wrap=$('boardWrap');
   var head=$('boardHead');
-  if(!p){ wrap.innerHTML=''; head.innerHTML=''; return; }
+  wrap.innerHTML='';
+  if(!p){ head.innerHTML=''; return; }
   head.innerHTML=
     '<h2><div class="bh-icon" style="background:'+(p.cor||'#0047B6')+'">'+(p.icone||'🎯')+'</div>'+esc(p.nome)+'</h2>'+
     '<span class="bh-sub">'+esc(p.descricao||'')+' · '+p.etapas.length+' etapas</span>'+
