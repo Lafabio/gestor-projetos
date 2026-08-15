@@ -727,8 +727,11 @@ function errMsg(e){
   };
   if(map[e.code]) return map[e.code];
   var msg=(e.message||'Erro inesperado.').toLowerCase();
-  if(e.code==='unavailable'||e.code==='permission-denied'||e.code==='not-found'||msg.indexOf('database')>-1||msg.indexOf('permission')>-1){
-    return 'Backend do Firebase ainda não configurado. Siga as instruções em PUBLICAR.md (ativar Authentication e Firestore no console) e recarregue a página.';
+  if(e.code==='permission-denied'){
+    return 'Sem permissão para esta operação. Confira se as regras do Firestore no console seguem o PUBLICAR.md. ['+e.code+']';
+  }
+  if(e.code==='unavailable'||e.code==='not-found'||msg.indexOf('database')>-1||msg.indexOf('permission')>-1){
+    return 'Backend do Firebase ainda não configurado. Siga as instruções em PUBLICAR.md (ativar Authentication e Firestore no console) e recarregue a página. ['+(e.code||'?')+']';
   }
   return e.message||'Erro inesperado.';
 }
