@@ -67,14 +67,20 @@ body.modal-lock{overflow:hidden;}
 .side-new{width:100%;background:var(--azul);color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:.78rem;cursor:pointer;font-family:var(--font);margin-bottom:10px;}
 .side-new:hover{background:var(--azul-esc);}
 .side-item{
-  display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;
+  display:flex;align-items:center;gap:9px;flex:1;width:100%;text-align:left;background:none;
   border:1px solid transparent;border-radius:8px;padding:8px 9px;font-size:.78rem;font-weight:600;
-  color:var(--ink);cursor:pointer;font-family:var(--font);margin-bottom:3px;transition:background .14s;
+  color:var(--ink);cursor:pointer;font-family:var(--font);transition:background .14s;
 }
 .side-item:hover{background:#eef2f9;}
 .side-item.active{background:#e7f0ff;border-color:rgba(0,71,182,.25);color:var(--azul);}
 .side-item .cor-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .side-item .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.side-item-wrap{display:flex;align-items:center;gap:3px;margin-bottom:3px;}
+.side-del{
+  background:none;border:none;color:var(--muted);cursor:pointer;font-size:.85rem;
+  padding:6px 7px;border-radius:7px;flex-shrink:0;transition:background .14s,color .14s;
+}
+.side-del:hover{background:#fdeae8;color:var(--vermelho);}
 .side-empty{font-size:.72rem;color:var(--muted);font-style:italic;padding:4px 2px;line-height:1.5;}
 .view{display:none;} .view.active{display:block;}
 
@@ -944,16 +950,27 @@ function renderChips(){
   var visiveis=S.projetos.filter(function(p){ return IS_PROFESSOR||ehMembroProjeto(p.id); });
   $('sideEmpty').style.display = visiveis.length ? 'none' : '';
   visiveis.forEach(function(p){
-    var b=document.createElement('button');
+    var wrap=document.createElement('div');
+    wrap.className='side-item-wrap';
+    var b=document.createElement('div');
     b.className='side-item'+(S.projetoAtual===p.id?' active':'');
-    b.type='button';
     b.innerHTML='<span class="cor-dot" style="background:'+(p.cor||'#0047B6')+'"></span><span class="name">'+esc(p.nome)+'</span>';
     b.title=p.nome;
     b.onclick=function(){
       S.projetoAtual=p.id; S.view='board';
       renderAll();
     };
-    el.appendChild(b);
+    wrap.appendChild(b);
+    if(IS_PROFESSOR){
+      var del=document.createElement('button');
+      del.type='button';
+      del.className='side-del';
+      del.title='Excluir projeto';
+      del.textContent='🗑';
+      del.onclick=function(ev){ ev.stopPropagation(); excluirProjeto(p.id); };
+      wrap.appendChild(del);
+    }
+    el.appendChild(wrap);
   });
   if(S.view==='board'&&!S.projetoAtual&&visiveis.length) S.projetoAtual=visiveis[0].id;
 }
@@ -1342,9 +1359,10 @@ async function arquivarProjeto(){
     renderAll();
   }catch(e){ toast('Erro: '+errMsg(e),'err'); }
 }
-function excluirProjeto(){
-  if(!S.editandoProjeto) return;
-  var p=S.projetos.find(function(x){return x.id===S.editandoProjeto;});
+function excluirProjeto(pid){
+  var id=pid||S.editandoProjeto;
+  if(!id) return;
+  var p=S.projetos.find(function(x){return x.id===id;});
   if(!p) return;
   S.excluirAlvo={id:p.id, nome:p.nome};
   $('cdNome').textContent=p.nome;
