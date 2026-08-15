@@ -342,6 +342,15 @@ body.modal-lock{overflow:hidden;}
 .apick{display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:999px;padding:4px 10px 4px 4px;font-size:.74rem;font-weight:700;cursor:pointer;transition:all .15s;background:#fff;}
 .apick input{width:15px;height:15px;accent-color:var(--azul);cursor:pointer;margin:0;}
 .apick:hover{border-color:var(--azul);}
+.grp-invite{display:flex;gap:6px;margin:0 0 6px;}
+.grp-invite input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.76rem;font-family:var(--font);outline:none;min-width:0;}
+.grp-invite input:focus{border-color:var(--azul);}
+.grp-invites{display:flex;flex-direction:column;gap:5px;margin:0 0 14px;}
+.inv-chip{display:flex;align-items:center;gap:7px;background:#f6f9fe;border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:.72rem;}
+.inv-email{flex:1;color:var(--ink);font-weight:600;word-break:break-all;}
+.inv-status{font-size:.66rem;font-weight:700;flex-shrink:0;}
+.inv-status.cad{color:var(--verde-esc);}
+.inv-status.pend{color:var(--amarelo);}
 
 /* Grupos modal */
 .grp-item{display:flex;align-items:center;gap:9px;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:9px;background:#fff;}
@@ -905,6 +914,7 @@ function escutarDados(){
     S.grupos=[];
     snap.forEach(function(d){ var g=d.data(); g.id=d.id; S.grupos.push(g); });
     preencherFiltroGrupos();
+    aceitarConvites();
     if(RENDERS_ATIVOS) renderAll();
   },function(e){ toast('Erro ao carregar grupos','err'); });
 
@@ -1593,11 +1603,17 @@ function abrirGrupos(){
       '<span class="g-name">'+esc(g.nome)+'</span>'+
       '<span class="g-members">'+membrosHtml+'</span>'+
       '<button class="g-del" title="Excluir grupo" onclick="excluirGrupo(\''+g.id+'\')">🗑</button></div>'+
-      '<div class="avatars-pick" style="margin:-2px 0 14px;">'+Object.keys(S.usuariosMap).map(function(mid){
+      '<div class="avatars-pick" style="margin:-2px 0 8px;">'+Object.keys(S.usuariosMap).map(function(mid){
         var u=S.usuariosMap[mid];
         if(!u||!u.nome) return '';
         var on=(g.membros||[]).indexOf(mid)>-1;
         return '<label class="apick"><input type="checkbox" '+(on?'checked':'')+' onchange="toggleMembro(\''+g.id+'\',\''+mid+'\',this.checked)"><div class="avatar" style="width:20px;height:20px;background:'+corUsuario(mid)+'">'+(u.nome.trim()[0].toUpperCase())+'</div>'+esc(u.nome)+'</label>';
+      }).join('')+'</div>'+
+      '<div class="grp-invite"><input type="email" id="invEmail_'+g.id+'" placeholder="email@escola.com" onkeydown="if(event.key===\'Enter\')convidarPorEmail(\''+g.id+'\')"><button class="btn btn-sm btn-pri" onclick="convidarPorEmail(\''+g.id+'\')">✉ Convidar</button></div>'+
+      '<div class="grp-invites">'+(g.convites||[]).map(function(em){
+        var reg=false;
+        Object.keys(S.usuariosMap).forEach(function(mid){ var u=S.usuariosMap[mid]; if(u&&u.email&&u.email.toLowerCase()===String(em).toLowerCase()) reg=true; });
+        return '<div class="inv-chip"><span class="inv-email">'+esc(em)+'</span><span class="inv-status '+(reg?'cad':'pend')+'">'+(reg?'✓ cadastrado':'⏳ aguardando cadastro')+'</span><button class="g-del" title="Remover convite" onclick="removerConvite(\''+g.id+'\',\''+escJs(em)+'\')">✕</button></div>';
       }).join('')+'</div>';
   });
   $('gruposLista').innerHTML=html||'<div style="font-size:.8rem;color:var(--muted);font-style:italic;">Nenhum grupo ainda neste projeto.</div>';
@@ -1620,8 +1636,9 @@ async function criarGrupo(){
   try{
     var ref=await FIRESTORE.collection('grupos').add({
       projetoId:S.projetoAtual, nome:nome, cor:S.corGrupo,
-      membros:membros, criadoPor:S.user.uid, criadoEm:firebase.firestore.FieldValue.serverTimestamp()
+      membros:membros, convites:[], criadoPor:S.user.uid, criadoEm:firebase.firestore.FieldValue.serverTimestamp()
     });
+    S.grupos.push({id:ref.id, projetoId:S.projetoAtual, nome:nome, cor:S.corGrupo, membros:membros, convites:[]});
     toast('Grupo "'+nome+'" criado!','ok');
     $('grupoNome').value='';
     abrirGrupos();
@@ -1636,6 +1653,56 @@ function toggleMembro(gid,mid,on){
   FIRESTORE.collection('grupos').doc(gid).set({membros:membros},{merge:true})
     .then(function(){ toast('Membros atualizados.','ok'); })
     .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+}
+function convidarPorEmail(gid){
+  if(!IS_PROFESSOR){ toast('Somente o professor administra grupos.','err'); return; }
+  var input=$('invEmail_'+gid);
+  if(!input) return;
+  var email=input.value.trim().toLowerCase();
+  if(!email){ toast('Informe o e-mail.','err'); return; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('E-mail inválido.','err'); return; }
+  var g=S.grupos.find(function(x){return x.id===gid;});
+  if(!g) return;
+  var achou=null;
+  Object.keys(S.usuariosMap).forEach(function(mid){
+    var u=S.usuariosMap[mid];
+    if(u&&u.email&&u.email.toLowerCase()===email) achou={uid:mid,nome:u.nome};
+  });
+  if(achou){
+    var m=g.membros||[];
+    if(m.indexOf(achou.uid)>-1){ toast('Este usuário já é membro do grupo.','err'); return; }
+    FIRESTORE.collection('grupos').doc(gid).set({membros:m.concat([achou.uid])},{merge:true})
+      .then(function(){ toast(achou.nome+' adicionado ao grupo!','ok'); abrirGrupos(); })
+      .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+  } else {
+    var conv=(g.convites||[]).map(function(e){return String(e).toLowerCase();});
+    if(conv.indexOf(email)>-1){ toast('Convite já enviado para este e-mail.','err'); return; }
+    FIRESTORE.collection('grupos').doc(gid).set({convites:(g.convites||[]).concat([email])},{merge:true})
+      .then(function(){ toast('Convite enviado! Aceita automaticamente quando a pessoa criar/login com esse e-mail.','ok'); abrirGrupos(); })
+      .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+  }
+}
+function removerConvite(gid,email){
+  if(!IS_PROFESSOR) return;
+  var g=S.grupos.find(function(x){return x.id===gid;});
+  if(!g) return;
+  var conv=(g.convites||[]).filter(function(e){return String(e).toLowerCase()!==String(email).toLowerCase();});
+  FIRESTORE.collection('grupos').doc(gid).set({convites:conv},{merge:true})
+    .then(function(){ toast('Convite removido.','ok'); abrirGrupos(); })
+    .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+}
+function aceitarConvites(){
+  if(!S.user||!S.user.email) return;
+  var mine=S.user.email.toLowerCase();
+  S.grupos.forEach(function(g){
+    var conv=(g.convites||[]).map(function(e){return String(e).toLowerCase();});
+    if(conv.indexOf(mine)>-1 && (g.membros||[]).indexOf(S.user.uid)===-1){
+      var novosConv=(g.convites||[]).filter(function(e){return String(e).toLowerCase()!==mine;});
+      FIRESTORE.collection('grupos').doc(g.id).set({membros:(g.membros||[]).concat([S.user.uid]), convites:novosConv},{merge:true})
+        .then(function(){ toast('Você foi adicionado ao grupo "'+g.nome+'"!','ok'); })
+        .catch(function(){});
+    }
+  });
 }
 async function excluirGrupo(gid){
   if(!IS_PROFESSOR) return;
