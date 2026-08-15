@@ -558,6 +558,14 @@ Conectar
 Criar
 Refletir</textarea>
       </div>
+      <div class="field" id="pInviteField" style="display:none;margin-top:6px;">
+        <label>🔗 Link de acesso do projeto</label>
+        <div class="grp-invite">
+          <input type="text" id="pLinkRead" readonly placeholder="Clique em "Copiar link" para gerar o convite...">
+          <button class="btn btn-sm btn-pri" onclick="gerarLinkProjeto()">🔗 Copiar link</button>
+        </div>
+        <p style="font-size:.72rem;color:var(--muted);margin:6px 0 0;">Quem abrir o link e criar/entrar com sua conta será adicionado automaticamente como integrante do projeto.</p>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-sec" id="btnLimparEtapas" onclick="preencherEtapasPadrao()">↺ Etapas padrão</button>
@@ -728,8 +736,9 @@ var S = {
 
 try{
   var __q=new URLSearchParams(location.search);
-  var __g=__q.get('grupo'), __c=__q.get('chave');
-  if(__g&&__c) S.conviteLink={gid:__g, chave:__c};
+  var __g=__q.get('grupo'), __p=__q.get('projeto'), __c=__q.get('chave');
+  if(__g&&__c) S.conviteLink={tipo:'grupo', id:__g, chave:__c};
+  else if(__p&&__c) S.conviteLink={tipo:'projeto', id:__p, chave:__c};
 }catch(e){}
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,9); }
@@ -761,6 +770,8 @@ function cartaoVisivelPara(c){
 function ehMembroProjeto(projetoId){
   if (IS_PROFESSOR) return true;
   var me=S.user.uid;
+  var p=S.projetos.find(function(x){return x.id===projetoId;});
+  if(p&&p.membros&&p.membros.indexOf(me)>-1) return true;
   return S.grupos.some(function(g){ return g.projetoId===projetoId && g.membros && g.membros.indexOf(me)>-1; });
 }
 
@@ -1353,6 +1364,7 @@ function abrirNovoProjeto(){
   document.querySelector('#pCorPalette .lp-col').classList.add('sel');
   preencherEtapasPadrao();
   S.editandoProjeto=null;
+  $('pInviteField').style.display='none';
   abrir('projetoOverlay');
 }
 function abrirEditarProjeto(pid){
@@ -1368,6 +1380,8 @@ function abrirEditarProjeto(pid){
   });
   $('pEtapasMulti').value=(p.etapas||[]).map(function(e){return e.nome;}).join('\n');
   S.editandoProjeto=pid;
+  $('pInviteField').style.display='';
+  $('pLinkRead').value = p.codigoAcesso ? (location.origin+location.pathname+'?projeto='+encodeURIComponent(pid)+'&chave='+encodeURIComponent(p.codigoAcesso)) : '';
   abrir('projetoOverlay');
 }
 function escolherCorProjeto(el){
@@ -1398,6 +1412,7 @@ async function salvarProjeto(){
       toast('Projeto atualizado.','ok');
     } else {
       data.arquivado=false; data.criadoPor=S.user.uid; data.criadoEm=firebase.firestore.FieldValue.serverTimestamp();
+      data.membros=[]; data.codigoAcesso=gerarCodigo();
       var ref=await FIRESTORE.collection('projetos').add(data);
       toast('Projeto criado 🎉','ok');
       S.projetoAtual=ref.id;
@@ -1746,10 +1761,42 @@ function gerarLinkAcesso(gid){
     .then(function(){ ok(code); })
     .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
 }
+function gerarLinkProjeto(){
+  if(!IS_PROFESSOR){ toast('Somente o professor.','err'); return; }
+  var pid=S.editandoProjeto;
+  if(!pid){ toast('Salve o projeto antes de gerar o link.','err'); return; }
+  var p=S.projetos.find(function(x){return x.id===pid;});
+  var ok=function(code){
+    var url=location.origin+location.pathname+'?projeto='+encodeURIComponent(pid)+'&chave='+encodeURIComponent(code);
+    copiar(url);
+    $('pLinkRead').value=url;
+    toast('Link de acesso do projeto copiado!','ok');
+  };
+  if(p&&p.codigoAcesso){ ok(p.codigoAcesso); return; }
+  var code=gerarCodigo();
+  FIRESTORE.collection('projetos').doc(pid).set({codigoAcesso:code},{merge:true})
+    .then(function(){ ok(code); })
+    .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+}
 function processarConviteLink(){
   if(!S.conviteLink||!S.user||!S.user.uid) return;
   var v=S.conviteLink;
-  var g=S.grupos.find(function(x){return x.id===v.gid;});
+  if(v.tipo==='projeto'){
+    var p=S.projetos.find(function(x){return x.id===v.id;});
+    if(!p) return;
+    if(p.codigoAcesso!==v.chave){ toast('Link de acesso inválido ou expirado.','err'); limparConviteLink(); return; }
+    var m=p.membros||[];
+    if(m.indexOf(S.user.uid)>-1){ if(S.projetoAtual!==p.id){ S.projetoAtual=p.id; S.view='board'; renderAll(); } limparConviteLink(); return; }
+    FIRESTORE.collection('projetos').doc(p.id).set({membros:m.concat([S.user.uid]), codigoAcesso:p.codigoAcesso},{merge:true})
+      .then(function(){
+        toast('Você entrou no projeto "'+p.nome+'"!','ok');
+        S.projetoAtual=p.id; preencherFiltroMembros(); S.view='board'; renderAll();
+        limparConviteLink();
+      })
+      .catch(function(e){ toast('Erro ao entrar no projeto: '+errMsg(e),'err'); });
+    return;
+  }
+  var g=S.grupos.find(function(x){return x.id===v.id;});
   if(!g) return;
   if(g.codigoAcesso!==v.chave){ toast('Link de acesso inválido ou expirado.','err'); limparConviteLink(); return; }
   if((g.membros||[]).indexOf(S.user.uid)>-1){ limparConviteLink(); return; }
