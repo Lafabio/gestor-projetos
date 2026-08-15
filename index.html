@@ -245,6 +245,14 @@ body.modal-lock{overflow:hidden;}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(0,71,182,.10);}
 .field textarea{resize:vertical;min-height:90px;line-height:1.55;}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.danger-body{text-align:center;}
+.danger-icon{font-size:2.6rem;margin-bottom:6px;}
+.danger-body p{font-size:.87rem;line-height:1.55;color:var(--ink);margin:6px 0;}
+.danger-body b{color:var(--vermelho);}
+#cdInput{font-family:var(--font);font-size:.9rem;text-align:center;color:var(--vermelho);font-weight:700;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;width:100%;outline:none;background:#fff;}
+#cdInput:focus{border-color:var(--vermelho);box-shadow:0 0 0 3px rgba(205,55,42,.12);}
+.confirm-msg{font-size:.78rem;margin-top:8px;min-height:1em;color:var(--vermelho);font-weight:700;}
+.confirm-msg.ok{color:var(--verde);}
 .btn{font-family:var(--font);font-weight:700;font-size:.8rem;padding:9px 18px;border-radius:8px;cursor:pointer;border:1.5px solid transparent;transition:all .16s;}
 .btn-pri{background:var(--azul);color:#fff;border-color:var(--azul);}
 .btn-pri:hover{background:var(--azul-esc);}
@@ -504,6 +512,25 @@ Refletir</textarea>
       <button class="btn btn-red" id="btnExcluirProjeto" style="display:none;" onclick="excluirProjeto()">🗑 Excluir projeto</button>
       <button class="btn btn-sec" id="btnArquivarProjeto" style="display:none;" onclick="arquivarProjeto()">📦 Arquivar</button>
       <button class="btn btn-pri" onclick="salvarProjeto()">💾 Salvar projeto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: CONFIRMAR EXCLUSÃO (2 fatores) ===================== -->
+<div class="overlay" id="confirmDelOverlay">
+  <div class="modal sm">
+    <div class="modal-head"><h3>🗑 Excluir projeto?</h3><button class="modal-close" onclick="fechar('confirmDelOverlay')">✕</button></div>
+    <div class="modal-body danger-body">
+      <div class="danger-icon">⚠️</div>
+      <p>Você está prestes a <b>excluir definitivamente</b> o projeto <b id="cdNome"></b> com
+        <span id="cdCarts"></span> e <span id="cdGrupos"></span>.<br>Esta ação <b>não pode ser desfeita</b>.</p>
+      <p>Para confirmar (2º fator), digite o nome exato do projeto abaixo:</p>
+      <input type="text" id="cdInput" placeholder="Digite o nome exato do projeto" autocomplete="off" oninput="validarConfirmDel(this.value)">
+      <div class="confirm-msg" id="cdMsg"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="fechar('confirmDelOverlay')">Cancelar</button>
+      <button class="btn btn-red" id="btnConfirmDel" disabled onclick="excluirProjetoConfirmado()">🗑 Excluir definitivamente</button>
     </div>
   </div>
 </div>
@@ -1293,17 +1320,44 @@ async function arquivarProjeto(){
     renderAll();
   }catch(e){ toast('Erro: '+errMsg(e),'err'); }
 }
-async function excluirProjeto(){
+function excluirProjeto(){
   if(!S.editandoProjeto) return;
-  if(!confirm('⚠️ EXCLUIR definitivamente este projeto, grupos e cartões? Esta ação não pode ser desfeita.')) return;
+  var p=S.projetos.find(function(x){return x.id===S.editandoProjeto;});
+  if(!p) return;
+  S.excluirAlvo={id:p.id, nome:p.nome};
+  $('cdNome').textContent=p.nome;
+  $('cdCarts').textContent=S.cartoes.filter(function(c){return c.projetoId===p.id;}).length+' cartão(ões)';
+  $('cdGrupos').textContent=S.grupos.filter(function(g){return g.projetoId===p.id;}).length+' grupo(s)';
+  $('cdInput').value='';
+  $('cdMsg').textContent='';
+  $('cdMsg').className='confirm-msg';
+  $('btnConfirmDel').disabled=true;
+  abrir('confirmDelOverlay');
+}
+function validarConfirmDel(val){
+  if(!S.excluirAlvo) return;
+  var ok=val.trim()===S.excluirAlvo.nome;
+  $('btnConfirmDel').disabled=!ok;
+  var m=$('cdMsg');
+  if(!val){ m.textContent=''; m.className='confirm-msg'; }
+  else if(ok){ m.textContent='✔ Correto. Botão liberado.'; m.className='confirm-msg ok'; }
+  else { m.textContent='O nome digitado não confere com "'+S.excluirAlvo.nome+'".'; m.className='confirm-msg'; }
+}
+async function excluirProjetoConfirmado(){
+  var alvo=S.excluirAlvo;
+  if(!alvo) return;
+  if($('cdInput').value.trim()!==alvo.nome){ toast('Confirmação inválida.','err'); return; }
   try{
     var batch=FIRESTORE.batch();
-    S.cartoes.filter(function(c){return c.projetoId===S.editandoProjeto;}).forEach(function(c){ batch.delete(FIRESTORE.collection('cartoes').doc(c.id)); });
-    S.grupos.filter(function(g){return g.projetoId===S.editandoProjeto;}).forEach(function(g){ batch.delete(FIRESTORE.collection('grupos').doc(g.id)); });
-    batch.delete(FIRESTORE.collection('projetos').doc(S.editandoProjeto));
+    S.cartoes.filter(function(c){return c.projetoId===alvo.id;}).forEach(function(c){ batch.delete(FIRESTORE.collection('cartoes').doc(c.id)); });
+    S.grupos.filter(function(g){return g.projetoId===alvo.id;}).forEach(function(g){ batch.delete(FIRESTORE.collection('grupos').doc(g.id)); });
+    batch.delete(FIRESTORE.collection('projetos').doc(alvo.id));
     await batch.commit();
-    toast('Projeto excluído.','ok'); fechar('projetoOverlay');
-    if(S.projetoAtual===S.editandoProjeto) S.projetoAtual=null;
+    toast('Projeto excluído.','ok');
+    fechar('confirmDelOverlay');
+    fechar('projetoOverlay');
+    S.excluirAlvo=null;
+    if(S.projetoAtual===alvo.id) S.projetoAtual=null;
     renderAll();
   }catch(e){ toast('Erro: '+errMsg(e),'err'); }
 }
