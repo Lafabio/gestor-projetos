@@ -22,6 +22,7 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;}
 body{font-family:var(--font);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;}
+body.modal-lock{overflow:hidden;}
 
 /* ================= TOPBAR ================= */
 .topbar{
@@ -224,16 +225,16 @@ body{font-family:var(--font);color:var(--ink);background:var(--bg);-webkit-font-
 /* ================= MODALS ================= */
 .overlay{display:none;position:fixed;inset:0;background:rgba(10,25,55,.55);z-index:100;align-items:flex-start;justify-content:center;padding:30px 14px;overflow-y:auto;}
 .overlay.open{display:flex;}
-.modal{background:#fff;border-radius:14px;width:min(720px,100%);box-shadow:0 24px 80px rgba(0,30,80,.35);position:relative;animation:pop .18s ease-out;}
+.modal{background:#fff;border-radius:14px;width:min(720px,100%);box-shadow:0 24px 80px rgba(0,30,80,.35);position:relative;animation:pop .18s ease-out;display:flex;flex-direction:column;max-height:calc(100vh - 60px);}
 @keyframes pop{from{transform:scale(.97);opacity:0;}to{transform:scale(1);opacity:1;}}
 .modal.sm{width:min(440px,100%);}
 .modal.lg{width:min(960px,100%);}
-.modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);border-radius:14px 14px 0 0;}
+.modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);border-radius:14px 14px 0 0;flex-shrink:0;background:#fff;}
 .modal-head h3{flex:1;font-size:1rem;font-weight:800;color:var(--azul);}
-.modal-close{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;border-radius:7px;width:32px;height:32px;line-height:1;}
+.modal-close{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;border-radius:7px;width:32px;height:32px;line-height:1;flex-shrink:0;}
 .modal-close:hover{background:#eef2f9;color:var(--ink);}
-.modal-body{padding:20px;max-height:70vh;overflow-y:auto;}
-.modal-foot{display:flex;gap:9px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap;}
+.modal-body{padding:20px;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+.modal-foot{display:flex;gap:9px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;background:#fff;border-radius:0 0 14px 14px;}
 
 .field{display:flex;flex-direction:column;gap:5px;margin-bottom:13px;}
 .field label{font-size:.7rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
@@ -1195,8 +1196,12 @@ function limparFiltros(){
 }
 
 /* ============================== MODAIS ============================== */
-function abrir(overlay){ $('projetoOverlay'); $(overlay).classList.add('open'); }
-function fechar(overlay){ $(overlay).classList.remove('open'); if(overlay==='cardOverlay') S.cardAtual=null; }
+function abrir(overlay){ $(overlay).classList.add('open'); document.body.classList.add('modal-lock'); }
+function fechar(overlay){
+  $(overlay).classList.remove('open');
+  if(overlay==='cardOverlay') S.cardAtual=null;
+  if(document.querySelectorAll('.overlay.open').length===0) document.body.classList.remove('modal-lock');
+}
 
 /* ---- Projeto ---- */
 function abrirNovoProjeto(){
