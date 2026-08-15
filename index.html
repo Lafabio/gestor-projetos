@@ -330,8 +330,9 @@ body{font-family:var(--font);color:var(--ink);background:var(--bg);-webkit-font-
 .auth-hero h1{font-size:1.25rem;font-weight:800;letter-spacing:.02em;}
 .auth-hero p{font-size:.78rem;color:rgba(255,255,255,.82);margin-top:4px;}
 .auth-tabs{display:flex;background:#f2f6fc;border-bottom:1px solid var(--border);}
-.auth-tab{flex:1;padding:13px;text-align:center;font-weight:700;font-size:.85rem;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;font-family:var(--font);}
-.auth-tab.active{color:var(--azul);border-bottom-color:var(--azul);background:#fff;}
+.auth-tab{flex:1;padding:13px;text-align:center;font-weight:700;font-size:.85rem;color:var(--muted);cursor:pointer;border:2px solid transparent;border-bottom:3px solid transparent;font-family:var(--font);transition:all .15s;border-radius:10px 10px 0 0;margin:0 2px;}
+.auth-tab:hover{color:var(--azul);background:#eaf1fb;}
+.auth-tab.active{color:var(--azul);border-color:var(--border);border-bottom-color:var(--azul);background:#fff;}
 .auth-panel{display:none;padding:24px 28px 26px;}
 .auth-panel.active{display:block;}
 .auth-err{color:var(--vermelho);font-size:.78rem;min-height:18px;margin-bottom:8px;font-weight:600;}
@@ -371,6 +372,9 @@ body{font-family:var(--font);color:var(--ink);background:var(--bg);-webkit-font-
       <div class="field"><label>Senha</label><input type="password" id="loginSenha" placeholder="••••••••" onkeydown="if(event.key==='Enter')fazerLogin()"></div>
       <div class="auth-err" id="loginErr"></div>
       <button class="btn btn-pri" style="width:100%;padding:12px;" onclick="fazerLogin()">Entrar →</button>
+      <div style="text-align:center;margin-top:14px;">
+        <button class="btn btn-green btn-sm" style="width:100%;padding:10px;" onclick="showAuthTab('register')">🆕 Não tem conta? Criar conta gratuita</button>
+      </div>
     </div>
     <div class="auth-panel" id="registerPanel">
       <div class="field"><label>Nome completo</label><input type="text" id="regNome" placeholder="Seu nome" onkeydown="if(event.key==='Enter')document.getElementById('regEmail').focus()"></div>
@@ -669,10 +673,16 @@ function errMsg(e){
     'auth/user-not-found':'Nenhum cadastro encontrado com este e-mail.',
     'auth/wrong-password':'Senha incorreta.',
     'auth/invalid-credential':'E-mail ou senha incorretos.',
+    'auth/operation-not-allowed':'Backend ainda não configurado: ative "E-mail/senha" em Firebase → Authentication.',
     'auth/too-many-requests':'Muitas tentativas. Aguarde e tente de novo.',
     'auth/network-request-failed':'Sem internet. Tente novamente.'
   };
-  return map[e.code]||(e.message||'Erro inesperado.');
+  if(map[e.code]) return map[e.code];
+  var msg=(e.message||'Erro inesperado.').toLowerCase();
+  if(e.code==='unavailable'||e.code==='permission-denied'||e.code==='not-found'||msg.indexOf('database')>-1||msg.indexOf('permission')>-1){
+    return 'Backend do Firebase ainda não configurado. Siga as instruções em PUBLICAR.md (ativar Authentication e Firestore no console) e recarregue a página.';
+  }
+  return e.message||'Erro inesperado.';
 }
 
 /* ============================== AUTH ============================== */
