@@ -1,0 +1,24 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      ".gitignore",
+      "PUBLICAR.md",
+      ".firebase/**",
+      ".firebaserc",
+      ".git",
+      "**/.git",
+      "**/.git/**",
+      "**/node_modules/**",
+      "**/.*"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
