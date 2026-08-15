@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Professor é o usuário cujo perfil em /usuarios tem perfil == 'professor'
+    // (ou o e-mail administrador lafaietep@gmail.com).
+    function professor() {
+      return request.auth != null &&
+        (request.auth.token.email == 'lafaietep@gmail.com' ||
+         get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.perfil == 'professor');
+    }
+
+    // Perfis: cada usuário cria e edita somente o próprio perfil; todos podem ler.
+    match /usuarios/{uid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Projetos: leitura para qualquer usuário logado; gravação só professor.
+    match /projetos/{pid} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if professor();
+    }
+
+    // Grupos de trabalho: leitura para qualquer usuário logado; gravação só professor.
+    match /grupos/{gid} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if professor();
+    }
+
+    // Cartões: leitura para qualquer usuário logado; gravação só professor.
+    match /cartoes/{cid} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if professor();
+    }
+  }
+}
