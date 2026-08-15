@@ -34,18 +34,7 @@ body.modal-lock{overflow:hidden;}
 .topbar .tb-logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:1rem;letter-spacing:.03em;white-space:nowrap;}
 .topbar .tb-logo .logo-box{background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.4);border-radius:9px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
 .topbar .tb-logo small{display:block;font-weight:400;font-size:.62rem;letter-spacing:.08em;color:rgba(255,255,255,.75);margin-top:1px;}
-.proj-chips{display:flex;gap:6px;overflow-x:auto;flex:1;padding:2px 0;scrollbar-width:none;}
-.proj-chips::-webkit-scrollbar{display:none;}
-.proj-chip{
-  background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.28);color:#fff;
-  border-radius:999px;padding:6px 13px;font-size:.75rem;font-weight:600;cursor:pointer;
-  white-space:nowrap;transition:all .18s;display:flex;align-items:center;gap:7px;
-}
-.proj-chip:hover{background:rgba(255,255,255,.2);}
-.proj-chip.active{background:#fff;color:var(--azul);border-color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.18);}
-.proj-chip .cor-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
-.proj-chip.dragging{opacity:.5;}
-.tb-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tb-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;}
 .tb-btn{
   background:rgba(255,255,255,.14);border:1.5px solid rgba(255,255,255,.35);color:#fff;
   border-radius:8px;padding:7px 13px;font-size:.75rem;font-weight:700;cursor:pointer;
@@ -65,7 +54,28 @@ body.modal-lock{overflow:hidden;}
 .user-badge .rol-chip.aluno{background:var(--aqua);}
 
 /* ================= WORKSPACE ================= */
-.workspace{max-width:1540px;margin:0 auto;padding:16px 18px 70px;}
+.workspace{max-width:1540px;margin:0 auto;padding:16px 18px 70px;display:flex;gap:14px;align-items:flex-start;}
+.main-col{flex:1;min-width:0;}
+
+/* Coluna lateral de projetos */
+.side-col{
+  width:250px;flex-shrink:0;position:sticky;top:76px;background:var(--card);
+  border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:12px;max-height:calc(100vh - 92px);overflow-y:auto;
+}
+.side-head{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;}
+.side-new{width:100%;background:var(--azul);color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;font-size:.78rem;cursor:pointer;font-family:var(--font);margin-bottom:10px;}
+.side-new:hover{background:var(--azul-esc);}
+.side-item{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;
+  border:1px solid transparent;border-radius:8px;padding:8px 9px;font-size:.78rem;font-weight:600;
+  color:var(--ink);cursor:pointer;font-family:var(--font);margin-bottom:3px;transition:background .14s;
+}
+.side-item:hover{background:#eef2f9;}
+.side-item.active{background:#e7f0ff;border-color:rgba(0,71,182,.25);color:var(--azul);}
+.side-item .cor-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.side-item .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.side-empty{font-size:.72rem;color:var(--muted);font-style:italic;padding:4px 2px;line-height:1.5;}
 .view{display:none;} .view.active{display:block;}
 
 /* ================= FILTROS ================= */
@@ -356,7 +366,8 @@ body.modal-lock{overflow:hidden;}
   .cm-grid{grid-template-columns:1fr;}
   .field-row{grid-template-columns:1fr;}
   .topbar{padding:9px 12px;gap:9px;}
-  .workspace{padding:12px 10px 60px;}
+  .workspace{padding:12px 10px 60px;flex-direction:column;}
+  .side-col{width:100%;position:static;max-height:220px;}
   .filters-bar{position:static;}
   .board-col{width:262px;}
 }
@@ -428,7 +439,6 @@ body.modal-lock{overflow:hidden;}
     <div class="logo-box">📋</div>
     <div>Gestor STEAM<small id="tbSubLabel">Quadros Kanban</small></div>
   </div>
-  <div class="proj-chips" id="projChips"></div>
   <div class="tb-right">
     <button class="tb-btn" onclick="abrirGrupos()" id="btnGruposTop" style="display:none;">👥 Grupos</button>
     <button class="tb-btn primary" onclick="abrirNovoProjeto()">＋ Novo projeto</button>
@@ -443,8 +453,17 @@ body.modal-lock{overflow:hidden;}
 <!-- ===================== WORKSPACE ===================== -->
 <div class="workspace" id="workspace" style="display:none;">
 
-  <!-- Filtros globais -->
-  <div class="filters-bar">
+  <!-- Coluna lateral: projetos visíveis -->
+  <aside class="side-col">
+    <div class="side-head">📋 Projetos</div>
+    <button class="side-new" onclick="abrirNovoProjeto()">＋ Novo projeto</button>
+    <div class="side-list" id="projChips"></div>
+    <div class="side-empty" id="sideEmpty" style="display:none;">Nenhum projeto visível ainda. Crie ou peça para ser incluído em um grupo.</div>
+  </aside>
+
+  <div class="main-col">
+    <!-- Filtros globais -->
+    <div class="filters-bar">
     <div class="fb-search"><span class="ico">🔍</span><input type="text" id="fBusca" placeholder="Buscar cartões por título ou descrição..." oninput="aplicarFiltros()"></div>
     <select id="fMembro" onchange="aplicarFiltros()"><option value="">Todos os membros</option></select>
     <select id="fPrioridade" onchange="aplicarFiltros()"><option value="">Qualquer prioridade</option><option value="1">Baixa</option><option value="2">Média</option><option value="3">Alta</option><option value="4">Crítica</option></select>
@@ -470,6 +489,7 @@ body.modal-lock{overflow:hidden;}
   <div class="view" id="view-board">
     <div class="board-head" id="boardHead"></div>
     <div class="board-wrap" id="boardWrap"></div>
+  </div>
   </div>
 </div>
 
@@ -892,7 +912,7 @@ function mostrarAuth(){
 function mostrarApp(pronto){
   $('authOverlay').classList.remove('open');
   $('topbar').style.display='flex';
-  $('workspace').style.display='block';
+  $('workspace').style.display='flex';
   if(!pronto){ $('workspace').style.opacity='0.4'; $('workspace').style.pointerEvents='none'; }
   else { $('workspace').style.opacity=''; $('workspace').style.pointerEvents=''; }
   var ua=$('userAvatar');
@@ -919,19 +939,18 @@ function renderAll(){
 function renderChips(){
   var el=$('projChips'); el.innerHTML='';
   var visiveis=S.projetos.filter(function(p){ return IS_PROFESSOR||ehMembroProjeto(p.id); });
-  if(visiveis.length===0){
-    el.innerHTML='<div style="font-size:.7rem;color:rgba(255,255,255,.7);font-weight:600;padding:2px 4px;">Nenhum projeto visível</div>';
-    return;
-  }
+  $('sideEmpty').style.display = visiveis.length ? 'none' : '';
   visiveis.forEach(function(p){
-    var c=document.createElement('div');
-    c.className='proj-chip'+(S.projetoAtual===p.id?' active':'');
-    c.innerHTML='<span class="cor-dot" style="background:'+(p.cor||'#0047B6')+'"></span>'+esc(p.nome);
-    c.onclick=function(){
+    var b=document.createElement('button');
+    b.className='side-item'+(S.projetoAtual===p.id?' active':'');
+    b.type='button';
+    b.innerHTML='<span class="cor-dot" style="background:'+(p.cor||'#0047B6')+'"></span><span class="name">'+esc(p.nome)+'</span>';
+    b.title=p.nome;
+    b.onclick=function(){
       S.projetoAtual=p.id; S.view='board';
       renderAll();
     };
-    el.appendChild(c);
+    el.appendChild(b);
   });
   if(S.view==='board'&&!S.projetoAtual&&visiveis.length) S.projetoAtual=visiveis[0].id;
 }
