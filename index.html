@@ -719,6 +719,14 @@ async function fazerCadastro(){
     });
     try{ await cred.user.sendEmailVerification(); }catch(e2){}
     toast('Conta criada! Bem-vindo(a) 🎉','ok');
+    if(S.user){
+      S.perfil={nome:nome,email:email,perfil:perfil,turma:turma};
+      IS_PROFESSOR=(perfil==='professor'||email===EMAIL_ADMIN);
+      if(!escutado){ escutarDados(); escutado=true; }
+      RENDERS_ATIVOS=true;
+      mostrarApp(true);
+      renderAll();
+    }
   }catch(e){ errEl.textContent=errMsg(e); }
 }
 
@@ -759,6 +767,7 @@ async function salvarPerfil(){
       S.perfil={nome:nome,email:S.user.email,perfil:perfil,turma:turma};
       IS_PROFESSOR=(perfil==='professor'||S.user.email===EMAIL_ADMIN);
       $('perfilOverlay').classList.remove('open');
+      document.body.classList.remove('modal-lock');
       if(!escutado){ escutarDados(); escutado=true; }
       RENDERS_ATIVOS=true;
       mostrarApp(true);
@@ -850,12 +859,14 @@ function mostrarAuth(){
   $('topbar').style.display='none';
   $('workspace').style.display='none';
   $('perfilOverlay').classList.remove('open');
+  document.body.classList.remove('modal-lock');
 }
 function mostrarApp(pronto){
   $('authOverlay').classList.remove('open');
   $('topbar').style.display='flex';
   $('workspace').style.display='block';
-  if(!pronto){ $('workspace').innerHTML='<div class="empty-state"><div class="big">⏳</div><h3>Complete seu perfil via painel</h3></div>'; }
+  if(!pronto){ $('workspace').style.opacity='0.4'; $('workspace').style.pointerEvents='none'; }
+  else { $('workspace').style.opacity=''; $('workspace').style.pointerEvents=''; }
   var ua=$('userAvatar');
   ua.textContent=(S.perfil&&S.perfil.nome?S.perfil.nome.trim()[0]:'?').toUpperCase();
   ua.style.background=corUsuario(S.user.uid);
@@ -868,6 +879,7 @@ function mostrarApp(pronto){
 
 /* ============================== RENDER ALL ============================== */
 function renderAll(){
+  if(!document.getElementById('projGrid')) return;
   renderChips();
   renderDashboard();
   renderBoard();
@@ -1133,6 +1145,7 @@ function cardAtendeFiltroGlobal(c){
 function emptyFiltros(){ return {busca:'',membro:'',prioridade:'',vencimento:'',etiqueta:'',grupo:''}; }
 
 function aplicarFiltros(){
+  if(!document.getElementById('projGrid')) return;
   var f=S.filtros||emptyFiltros();
   var busca=($('fBusca').value||'').toLowerCase();
   f.busca=busca;
