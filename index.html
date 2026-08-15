@@ -412,6 +412,7 @@ body.modal-lock{overflow:hidden;}
       <span class="ah-icon">📋</span>
       <h1>Gestor de Projetos STEAM</h1>
       <p>Quadros Kanban para projetos paralelos e grupos de trabalho</p>
+      <div id="conviteHint" style="display:none;margin-top:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:10px 12px;font-size:.85rem;text-align:center;line-height:1.4;">🔗 Você está ingressando por um link de convite. Entre ou crie uma conta para entrar no grupo.</div>
     </div>
     <div class="auth-tabs">
       <div class="auth-tab active" onclick="showAuthTab('login')">Entrar</div>
@@ -721,8 +722,15 @@ var S = {
   projetos:[], grupos:[], cartoes:[], usuariosMap:{},
   projetoAtual:null, view:'dashboard',
   corProjeto:'#0047B6', corGrupo:'#0047B6',
-  editandoProjeto:null, cardAtual:null
+  editandoProjeto:null, cardAtual:null,
+  conviteLink:null
 };
+
+try{
+  var __q=new URLSearchParams(location.search);
+  var __g=__q.get('grupo'), __c=__q.get('chave');
+  if(__g&&__c) S.conviteLink={gid:__g, chave:__c};
+}catch(e){}
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,9); }
 function hoje(){ var d=new Date(); return d.toISOString().slice(0,10); }
@@ -915,6 +923,7 @@ function escutarDados(){
     snap.forEach(function(d){ var g=d.data(); g.id=d.id; S.grupos.push(g); });
     preencherFiltroGrupos();
     aceitarConvites();
+    processarConviteLink();
     if(RENDERS_ATIVOS) renderAll();
   },function(e){ toast('Erro ao carregar grupos','err'); });
 
@@ -945,6 +954,7 @@ firebase.auth().onAuthStateChanged(async function(user){
   RENDERS_ATIVOS=true;
   mostrarApp(true);
   renderAll();
+  processarConviteLink();
 });
 var escutado=false;
 
@@ -961,6 +971,8 @@ function mostrarAuth(){
   $('workspace').style.display='none';
   $('perfilOverlay').classList.remove('open');
   document.body.classList.remove('modal-lock');
+  var ch=$('conviteHint');
+  if(ch) ch.style.display=S.conviteLink?'':'none';
 }
 function mostrarApp(pronto){
   $('authOverlay').classList.remove('open');
@@ -1609,7 +1621,7 @@ function abrirGrupos(){
         var on=(g.membros||[]).indexOf(mid)>-1;
         return '<label class="apick"><input type="checkbox" '+(on?'checked':'')+' onchange="toggleMembro(\''+g.id+'\',\''+mid+'\',this.checked)"><div class="avatar" style="width:20px;height:20px;background:'+corUsuario(mid)+'">'+(u.nome.trim()[0].toUpperCase())+'</div>'+esc(u.nome)+'</label>';
       }).join('')+'</div>'+
-      '<div class="grp-invite"><input type="email" id="invEmail_'+g.id+'" placeholder="email@escola.com" onkeydown="if(event.key===\'Enter\')convidarPorEmail(\''+g.id+'\')"><button class="btn btn-sm btn-pri" onclick="convidarPorEmail(\''+g.id+'\')">✉ Convidar</button></div>'+
+      '<div class="grp-invite"><input type="email" id="invEmail_'+g.id+'" placeholder="email@escola.com" onkeydown="if(event.key===\'Enter\')convidarPorEmail(\''+g.id+'\')"><button class="btn btn-sm btn-pri" onclick="convidarPorEmail(\''+g.id+'\')">✉ Convidar</button><button class="btn btn-sm" title="Link de acesso" onclick="gerarLinkAcesso(\''+g.id+'\')">🔗</button></div>'+
       '<div class="grp-invites">'+(g.convites||[]).map(function(em){
         var reg=false;
         Object.keys(S.usuariosMap).forEach(function(mid){ var u=S.usuariosMap[mid]; if(u&&u.email&&u.email.toLowerCase()===String(em).toLowerCase()) reg=true; });
@@ -1636,9 +1648,9 @@ async function criarGrupo(){
   try{
     var ref=await FIRESTORE.collection('grupos').add({
       projetoId:S.projetoAtual, nome:nome, cor:S.corGrupo,
-      membros:membros, convites:[], criadoPor:S.user.uid, criadoEm:firebase.firestore.FieldValue.serverTimestamp()
+      membros:membros, convites:[], codigoAcesso:gerarCodigo(), criadoPor:S.user.uid, criadoEm:firebase.firestore.FieldValue.serverTimestamp()
     });
-    S.grupos.push({id:ref.id, projetoId:S.projetoAtual, nome:nome, cor:S.corGrupo, membros:membros, convites:[]});
+    S.grupos.push({id:ref.id, projetoId:S.projetoAtual, nome:nome, cor:S.corGrupo, membros:membros, convites:[], codigoAcesso:gerarCodigo()});
     toast('Grupo "'+nome+'" criado!','ok');
     $('grupoNome').value='';
     abrirGrupos();
@@ -1703,6 +1715,58 @@ function aceitarConvites(){
         .catch(function(){});
     }
   });
+}
+function gerarCodigo(){
+  var s='', chars='abcdefghijklmnopqrstuvwxyz23456789';
+  for(var i=0;i<8;i++) s+=chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+function copiar(texto){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).catch(function(){});
+  } else {
+    var ta=document.createElement('textarea');
+    ta.value=texto; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    ta.remove();
+  }
+}
+function gerarLinkAcesso(gid){
+  if(!IS_PROFESSOR){ toast('Somente o professor.','err'); return; }
+  var g=S.grupos.find(function(x){return x.id===gid;});
+  if(!g) return;
+  var ok=function(code){
+    var url=location.origin+location.pathname+'?grupo='+encodeURIComponent(g.id)+'&chave='+encodeURIComponent(code);
+    copiar(url);
+    toast('Link de acesso copiado! Envie para os alunos.','ok');
+  };
+  if(g.codigoAcesso){ ok(g.codigoAcesso); return; }
+  var code=gerarCodigo();
+  FIRESTORE.collection('grupos').doc(gid).set({codigoAcesso:code},{merge:true})
+    .then(function(){ ok(code); })
+    .catch(function(e){ toast('Erro: '+errMsg(e),'err'); });
+}
+function processarConviteLink(){
+  if(!S.conviteLink||!S.user||!S.user.uid) return;
+  var v=S.conviteLink;
+  var g=S.grupos.find(function(x){return x.id===v.gid;});
+  if(!g) return;
+  if(g.codigoAcesso!==v.chave){ toast('Link de acesso inválido ou expirado.','err'); limparConviteLink(); return; }
+  if((g.membros||[]).indexOf(S.user.uid)>-1){ limparConviteLink(); return; }
+  FIRESTORE.collection('grupos').doc(g.id).set({
+    membros:(g.membros||[]).concat([S.user.uid]),
+    codigoAcesso:g.codigoAcesso
+  },{merge:true})
+    .then(function(){
+      toast('Você entrou no grupo "'+g.nome+'"!','ok');
+      if(S.projetoAtual!==g.projetoId){ S.projetoAtual=g.projetoId; preencherFiltroMembros(); S.view='board'; renderAll(); }
+      limparConviteLink();
+    })
+    .catch(function(e){ toast('Erro ao entrar no grupo: '+errMsg(e),'err'); });
+}
+function limparConviteLink(){
+  S.conviteLink=null;
+  try{ history.replaceState(null,'',location.pathname); }catch(e){}
 }
 async function excluirGrupo(gid){
   if(!IS_PROFESSOR) return;
